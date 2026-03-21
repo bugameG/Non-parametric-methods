@@ -1,0 +1,621 @@
+---
+title: "MAS 812:Non-Parametric Methods"
+author: "Gift Pamba"
+date: "MSC/MAT/00098/024"
+output: word_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(knitr)
+library(tidyverse)
+library(DescTools)
+library(coin)
+library(randtests)
+
+
+```
+
+# EXERCISE 9.1
+Two methods of teaching reading are compared. Eight students are taught by Method A and seven by Method B. Their reading
+comprehension scores are:
+
+> Method A: 85, 92, 78, 88, 90, 82, 86, 89 
+
+> Method B: 75, 80, 72, 78, 79, 74, 76
+
+
+******
+
+a. Perform a Wilcoxon rank-sum test at $\alpha = 0.05$ to determine if the methods differ.
+
+```{r, echo=FALSE, message=FALSE, warning=FALSE}
+
+## Difference in time to relief
+drugA <- c(85,92,78,88,90,82,86,89)
+drugB <- c(75,80,72,78,79,74,76)
+
+## Wilcoxon - Mann Whitney U test decision 
+relief.test <- wilcox.test(x = drugA, y = drugB,
+            alternative = "two.sided", paired = FALSE,
+            conf.int = TRUE, conf.level = 0.95, exact = TRUE);cat(paste("The p-value is",round(relief.test$p.value,4)
+))
+```
+
+
+b.  Calculate the Mann-Whitney U statistic and verify its relationship to W
+
+U statistic is given by;
+$$U = W_B - \frac{m(m+1)}{2}$$
+Now $${W}_{B} = 3+8+1+5.5+7+2+4 = 30.5$$
+
+$$U = 30.5 - \frac{56}{2} = 2.5$$
+
+**Normal approximation**
+$$z = \frac{2.5-28}{\sqrt{\frac{56(7+8+1)}{12}}} = -2.951$$
+
+**2-sided p-value:** $2*p(z<-2.951) = 2*0.0016 = 0.0032$
+
+
+```{r, echo=FALSE, message = FALSE, warning = FALSE}
+cat(paste("R-software gives a U statistic of:",relief.test$statistic))
+```
+This generates a z value of 2.951.
+The Wilcoxon Statistic $W_B$ is used as an input to generate two U statistic values that yield an absolute z-statistic of 2.951 upon Normal approximation. 
+
+
+c.  Construct a 95% confidence interval for the shift parameter
+```{r, echo=FALSE, message = FALSE, warning = FALSE}
+## 95% confidence interval
+cat(
+  paste("95% confidence interval:",paste0("[",round(relief.test$conf.int[1],4),", ",round(relief.test$conf.int[2],4),"]")
+        )
+  )
+```
+
+d. Interpret your results
+
+*Decision:* Since $p<0.05$ we reject the null hypothesis.
+*Conclusion:* We have substantial evidence that both teaching methods differ at a significance level of 5% 
+
+# EXERCISE 9.2
+For the data in Exercise 1:
+
+******
+
+a. Compute the Hodges-Lehmann estimator of the shift parameter.
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+# Hodges-Lehmann estimator for location shift
+hl_est <- HodgesLehmann(x = drugA, y = drugB, conf.level = 0.95)
+
+cat(paste("The Hodges-Lehmann estimate is a student score of", hl_est[1]))
+```
+
+b. Compare it to the difference in sample means
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+# 2 independent sample t-test 
+relief.test2 <- t.test(x = drugA, y = drugB, alternative = "two.sided",
+       paired = FALSE, conf.level = 0.95)
+cat(
+  paste("The t-test gives us a p-value of", round(relief.test2$p.value,4),"in support of the alternative hypothesis of a non-zero difference in mean.")
+  )
+```
+Both parametric and non-parametric tests are in favor of a non-zero difference in mean.
+
+c. Which estimator is more robust? Why?
+
+*To check for robustness, we will compute the skewness and kurtosis values for both samples and perform a Shapiro-Wilk test for Normality*
+
+**A. Moments**
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+
+# Kurtosis
+ktsA <- Kurt(x = drugA)
+ktsB <- Kurt(x = drugB)
+
+# Skewness
+skA <- Skew(x = drugA)
+skB <- Skew(x = drugB)
+
+moments <- data.frame("kurtosis" = c(ktsA, ktsB),
+                      "skewness" = c(skA, skB),
+                      row.names = c("Drug A", "Drug B"));moments
+
+```
+
+**B. Shapiro-Wilk**
+
+$${H}_{0}: Data \ is \ normal$$
+$${H}_{0}: Data \ is \ non-normal$$
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+# Shapiro-Wilk test for drug A
+swA <- shapiro.test(x = drugA)
+
+# Shapiro-Wilk test for drug B
+swB <- shapiro.test(x = drugB)
+
+sw_df <- data.frame("Drug_A" = c(swA$p.value),
+                    "Drug_B" = c(swB$p.value));sw_df
+```
+
+The Shapiro Wilk Normality test rules in favor of the null hypothesis that suggests that both the relief times of drug A and B are normally distributed.
+In conclusion, the two-sample t-test is more robust than the Wilcoxon-Mann Whitney test.
+
+# EXERCISE 9.3
+A study compares pain relief times for two drugs:
+
+> Drug X: 15, 18, 20, 22, 19, 21, 17, 23, 24, 16
+
+> Drug Y: 12, 14, 13, 15, 11, 16, 14, 13, 15, 12
+
+******
+
+a. Perform a median test at $\alpha = 0.05$
+
+$${H}_{0}: {M}_{X} = {M}_{Y}$$
+$${H}_{1}: {M}_{X} \neq {M}_{Y}$$
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+pr <- data.frame("drug" = rep(c("X","Y"), each = 10) |> factor(),
+                   "relief_time" = c(15, 18, 20, 22, 19, 21, 17, 23, 24, 16,
+                                     12, 14, 13, 15, 11, 16, 14, 13, 15, 12)
+                   )
+# Overall median for all observations
+M <- median(pr$relief_time, na.rm = TRUE) 
+
+# Contingency table for median test
+below_above_table <- table(pr$drug, pr$relief_time > M) 
+
+# Perform Chi-Square test
+pr_chi <- chisq.test(below_above_table)
+
+cat(paste0(
+  "p-value:",round(pr_chi$p.value, 4),"\n",
+  "Decision: We reject the null hypothesis of similar median pain time"
+))
+```
+
+b. Compare the results with a Wilcoxon rank-sum test
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+pr_wrs <- wilcox.test(x = drugA, y = drugB, paired = FALSE,
+                      exact =TRUE, alternative = "two.sided")
+
+cat(paste0(
+  "Wilcoxon rank sum test:","\n",
+  "p-value-",round(pr_wrs$p.value, 4),"\n",
+  "Decision: We reject the null hypothesis that suggests that the distribution of pain relief times for the two drugs are identical"
+))
+
+```
+
+*Both tests return a decision of null hypothesis rejection at 5% significance*
+
+c. Which test do you think is more appropriate?
+
+*The Wilcoxon rank sum test. It is a more robust test than the Median test.*
+
+
+# EXERCISE 9.4
+(Kolmogorov-Smirnov Test). Using the data from Exercise 3:
+
+*****
+
+a. Perform a Kolmogorov-Smirnov two-sample test
+
+```{r, echo = F, warning = F, message = F}
+pr_ks <- ks.test(x = pr$relief_time[pr$drug == "X"],
+                 y = pr$relief_time[pr$drug == "Y"],
+                 alternative = "two.sided", exact = TRUE)
+
+cat(
+  paste0("Kolmogorov-Smirnov test:", "\n",
+        "p-value:",round(pr_ks$p.value,4), "\n",
+        "Decision: We reject the null hypothesis. Pain relief times given by both drugs come from different distributions.")
+)
+```
+
+b. What does this test tell you that the Wilcoxon test might miss?
+
+> The *Kolmogorov-Smirnov* is able to tells us about the skewness and kurtosis present in the distributions under review, something that the *Wilcoxon tests* may miss. 
+
+
+C. Plot the empirical CDFs for both groups
+
+```{r, echo = F, warning = F, message = F, fig.width = 10, fig.height = 7}
+# Empirical distributions
+
+ggplot(data = pr) +
+  stat_ecdf(aes(x = relief_time, color = drug), size = 1.085) +
+  labs(title = "Emprical CDF comparison",
+       x = "Time to pain relief",
+       y = "cumulative probability")+
+  theme_minimal()
+  
+  
+```
+
+
+
+
+# EXERCISE 9.5
+(Permutation Test). For the data in Exercise 1:
+
+****
+
+a. Perform a permutation test for the difference in means using 10,000 permutations.
+
+$${H}_{0}: {\mu}_{0}={\mu}_{1}$$
+$${H}_{0}: {\mu}_{0} \neq {\mu}_{1}$$
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+set.seed(123)
+
+# - Recall variables drugA and drugB
+
+# Difference in mean pain relief time
+observed_stat <- mean(drugA) - mean(drugB)
+
+# Combine data
+drugAB <- c(drugA, drugB)
+drug_type <- c(rep("A",length(drugA)), rep("B",length(drugB)))
+
+# Permutations
+n_perm <- 10000
+perm_stats <- numeric(n_perm)
+
+for(i in 1:n_perm){
+  perm_group <- sample(drug_type)
+  
+  perm_stats[i] <- mean(drugAB[perm_group == "A"]) - mean(drugAB[perm_group == "B"])
+  
+}
+
+# Two-sided p-value
+perm_pvalue <- mean(
+  abs(perm_stats) >= abs(observed_stat)
+  )
+
+cat(
+  paste0("Permutation test for difference in means:", "\n",
+         "p-value: ", round(perm_pvalue, 4), "\n",
+         "Decision: We reject the null hypothesis. There is a significant difference in the mean time to pain relief by the two drugs")
+)
+```
+
+b. Compare the p-value with the Wilcoxon test p-value.
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+cat(
+  paste0(
+    "Permutation test p-value: ", round(perm_pvalue, 4),"\n",
+    "Wilcoxon test p-value: ", round(relief.test$p.value, 4), "\n",
+    "The permutation p-value is by far less than that of the Wilcoxon test."
+  )
+)
+
+```
+
+c. Explain why they might differ.
+
+*- The wilcoxon test targets the median through ranked values While, the permutation test tagets the mean differences through actual values.*
+
+*- The wilcoxon test is less sensitive to outlier values while the permutation test is highly sensitive to outliers.*
+
+# EXERCISE 9.6
+(Wald-Wolfowitz Runs Test). For the data in Exercise 3:
+
+*****
+
+a. Perform a runs test for homogeneity
+
+$${H}_{0}: The\ samples\ come\ from\ the\ same\ poppulation$$
+$${H}_{1}:The\ samples\ come\ from\ different\ poppulations $$
+
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+drug_run <- pr |> arrange(relief_time) |> select(drug) |> pull()
+
+pr_runs <- RunsTest(drug_run)
+
+cat(
+  paste0("The Runs test: ", "\n",
+         "p-value: ",round(pr_runs$p.value,4), "\n",
+         "Decision: We reject the null hypothesis. In conclusion, the time to pain relief for the two drugs come from different populations")
+)
+```
+
+
+b. What does the number of runs tell you about the data?
+*It tells us whether the samples are clustered or exhibit a systematic difference. The pain relief data has 6 runs. The data is more likely to be clustered in nature.*
+
+c. Compare the conclusion with other tests you’ve performed
+
+```{r, echo = FALSE, warning = FALSE, message = FALSE}
+pr_results <- c("Median Test" = round(pr_chi$p.value,4), 
+                "Kolmogorov-Smirnov" = round(pr_ks$p.value,4),
+                "Wilcoxon rank sum" = round(pr_wrs$p.value,4),
+                "Runs Test" = round(pr_runs$p.value,4));pr_results |> sort()
+```
+We rejected the null hypothesis for all the four non-parametric tests. The **Kolmogorov-Smirnov** test had the least p-value `r round(pr_ks$p.value,4)` while **The Runs** test had the largest `r round(pr_runs$p.value,4)`.  
+
+# EXERCISE 9.7
+(Power Comparison). Generate data in R from the following distributions
+with m = n = 20:
+
+****
+
+a. Normal(0,1) vs Normal(0.5,1)
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+set.seed(314)
+
+n_sim <- 1000 # Number of simulations
+Alpha <- 0.05 # Significance level
+m <- 20 # sample one size 
+n <- 20 # sample two size
+
+# t-test simulations
+ttest_rejections_a <- replicate(n = n_sim, {
+    # Simulating observations
+    a1 <- rnorm(n = m, mean = 0, sd = 1)
+    a2 <- rnorm(n = n, mean = 0.5, sd = 1)
+    
+    # t-test
+    p_value <-t.test(x = a1, y = a2, 
+               alternative = "two.sided", conf.level = 0.95,
+               paired = FALSE)$p.value
+    
+    p_value < Alpha
+    
+    # Wilcoxon rank sum test
+        
+  }
+) 
+
+ttest_emprical_power_a <- mean(ttest_rejections_a)
+
+# Wilcoxon rank sum simulations
+wrs_rejections_a <- replicate(n = n_sim, {
+    # Simulating observations
+    a1 <- rnorm(n = m, mean = 0, sd = 1)
+    a2 <- rnorm(n = n, mean = 0.5, sd = 1)
+    
+    # Wilcoxon rank sum test
+    p_value <-wilcox.test(x = a1, y = a2, 
+               alternative = "two.sided", conf.level = 0.95,
+               paired = FALSE)$p.value
+    
+    p_value < Alpha
+    
+    }
+) 
+
+wrs_emprical_power_a <- mean(wrs_rejections_a)
+
+# Kolmogorov-Smirnov simulations
+ks_rejections_a <- replicate(n = n_sim, {
+    # Simulating observations
+    a1 <- rnorm(n = m, mean = 0, sd = 1)
+    a2 <- rnorm(n = n, mean = 0.5, sd = 1)
+    
+    # Wilcoxon rank sum test
+    p_value <-wilcox.test(x = a1, y = a2, 
+               alternative = "two.sided")$p.value
+    
+    p_value < Alpha
+    
+    }
+) 
+
+ks_emprical_power_a <- mean(ks_rejections_a)
+
+
+cat(paste0("p-values (5%)","\n"))
+pvalues_a <- c("t-test" = ttest_emprical_power_a,
+               "Wilcoxon rank sum" = wrs_emprical_power_a,
+               "Kolmogorov-Smirnov" = ks_emprical_power_a);pvalues_a |> sort()
+
+```
+
+
+
+b. Normal(0,1) vs Normal(0,2) (different variances)
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+set.seed(314)
+
+# t-test simulations
+ttest_rejections_b <- replicate(n = n_sim, {
+    # Simulating observations
+    b1 <- rnorm(n = m, mean = 0, sd = 1)
+    b2 <- rnorm(n = n, mean = 0, sd = 2)
+    
+    # t-test
+    p_value <-t.test(x = b1, y = b2, 
+               alternative = "two.sided", conf.level = 0.95,
+               paired = FALSE)$p.value
+    
+    p_value < Alpha
+    
+    # Wilcoxon rank sum test
+        
+  }
+) 
+
+ttest_emprical_power_b <- mean(ttest_rejections_b)
+
+# Wilcoxon rank sum simulations
+wrs_rejections_b <- replicate(n = n_sim, {
+    # Simulating observations
+    b1 <- rnorm(n = m, mean = 0, sd = 1)
+    b2 <- rnorm(n = n, mean = 0, sd = 2)
+    
+    # Wilcoxon rank sum test
+    p_value <-wilcox.test(x = b1, y = b2, 
+               alternative = "two.sided", conf.level = 0.95,
+               paired = FALSE)$p.value
+    
+    p_value < Alpha
+    
+    }
+) 
+
+wrs_emprical_power_b <- mean(wrs_rejections_b)
+
+# Kolmogorov-Smirnov simulations
+ks_rejections_b <- replicate(n = n_sim, {
+    # Simulating observations
+    b1 <- rnorm(n = m, mean = 0, sd = 1)
+    b2 <- rnorm(n = n, mean = 0, sd = 2)
+    
+    # Wilcoxon rank sum test
+    p_value <-wilcox.test(x = b1, y = b2, 
+               alternative = "two.sided")$p.value
+    
+    p_value < Alpha
+    
+    }
+) 
+
+ks_emprical_power_b <- mean(ks_rejections_b)
+
+
+cat(paste0("p-values (5%)","\n"))
+pvalues_b <- c("t-test" = ttest_emprical_power_b,
+               "Wilcoxon rank sum" = wrs_emprical_power_b,
+               "Kolmogorov-Smirnov" = ks_emprical_power_b);pvalues_b |> sort()
+
+```
+
+
+c. Cauchy(0,1) vs Cauchy(0.5,1)
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+set.seed(314)
+
+
+# t-test simulations
+ttest_rejections_c <- replicate(n = n_sim, {
+    # Simulating observations
+    c1 <- rcauchy(n = m, location = 0, scale = 1)
+    c2 <- rcauchy(n = n, location = 0.5, scale = 1)
+    
+    # t-test
+    p_value <-t.test(x = c1, y = c2, 
+               alternative = "two.sided", conf.level = 0.95,
+               paired = FALSE)$p.value
+    
+    p_value < Alpha
+    
+    # Wilcoxon rank sum test
+        
+  }
+) 
+
+ttest_emprical_power_c <- mean(ttest_rejections_c)
+
+# Wilcoxon rank sum simulations
+wrs_rejections_c <- replicate(n = n_sim, {
+    # Simulating observations
+    c1 <- rcauchy(n = n, location = 0, scale = 1)
+    c2 <- rcauchy(n = n, location = 0.5, scale = 1)
+    
+    # Wilcoxon rank sum test
+    p_value <-wilcox.test(x = c1, y = c2, 
+               alternative = "two.sided", conf.level = 0.95,
+               paired = FALSE)$p.value
+    
+    p_value < Alpha
+    
+    }
+) 
+
+wrs_emprical_power_c <- mean(wrs_rejections_c)
+
+# Kolmogorov-Smirnov simulations
+ks_rejections_c <- replicate(n = n_sim, {
+    # Simulating observations
+    c1 <- rcauchy(n = n, location = 0, scale = 1)
+    c2 <- rcauchy(n = n, location = 0.5, scale = 1)
+    
+    # Wilcoxon rank sum test
+    p_value <-wilcox.test(x = c1, y = c2, 
+               alternative = "two.sided")$p.value
+    
+    p_value < Alpha
+    
+    }
+) 
+
+ks_emprical_power_c <- mean(ks_rejections_c)
+
+
+cat(paste0("p-values (5%)","\n"))
+pvalues_c <- c("t-test" = ttest_emprical_power_c,
+               "Wilcoxon rank sum" = wrs_emprical_power_c,
+               "Kolmogorov-Smirnov" = ks_emprical_power_c);pvalues_c |> sort()
+
+```
+
+For each case, perform t-test, Wilcoxon test, and Kolmogorov-Smirnov test. Repeat 1000
+times and compute empirical power. Summarize your findings in a table. What do you
+conclude about the relative power of these tests under different alternatives?
+
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+pvalues_abc <- data.frame("case_A" = pvalues_a, 
+                          "case_B" = pvalues_b,
+                          "case_C" = pvalues_c,
+                          row.names = c("t-test", 
+                                        "Wilcoxon rank sum", 
+                                        "Kolmogorov-Smirnov"))
+pvalues_abc |> 
+  kable(format = "simple", 
+        col.names = c("case a", "case b", "case c"))
+```
+
+### t-test
+
+The test records the highest empirical power when dealing with data from two normal populations having the same variance. Empirical power of the test diminishes when data from both populations is non-normal as seen in case c.
+
+### Wilcoxon rank sum test
+
+The test records a relatively lower power as compared to the t-test when dealing with a sampled observations extracted from a pair normal populations.(case a) This power decreases further when the variances of both populations differ(case b).
+
+### Kolmogorov-Smirnov test
+
+Case a returns the highest empirical power of 32%.The lowest is recorded under case b with nearly 6% 
+
+# EXERCISE 9.8
+a. Why does the Wilcoxon rank-sum test require the assumption that the distributions
+have the same shape?
+
+
+*The test does not require both distributions to have the same shape, but it does if you want to interpret the result as a difference in medians*
+
+b. Under what conditions would you prefer the median test over the Wilcoxon test?
+
+- Both distributions under investgation have different shapes in terms of *skewness* and *kurtosis*
+- When the data at hand has extreme outliers
+- If you want to explicitly compare two medians
+
+c. What is the advantage of permutation tests over traditional nonparametric tests?
+
+- Permutation tests have fewer assumptions to consider than the other nonparametric tests
+- They cancel the need of approximations by providing exact p-value
+
+
+d.  Explain the difference between the null hypotheses of the Wilcoxon test and the
+Kolmogorov-Smirnov test
+
+*Under the null hypothesis, the Wilcoxon test investigates the location of shift while the Kolmogorov-Smirnov test investigates the whether two distributions are the same* 
+
+
+e. Why might the runs test have low power for detecting location shifts?
+
+*The runs test analyzes randomness of sequence, not differences in magnitude or rank.*
